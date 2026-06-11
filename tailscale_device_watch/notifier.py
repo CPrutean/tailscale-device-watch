@@ -145,7 +145,7 @@ class Notifier:
             )
 
         payload = {
-            "content": "@everyone" if "stolen" in title.lower() else None,
+            "content": "@everyone",
             "embeds": [
                 {
                     "title": title,
