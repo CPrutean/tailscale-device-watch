@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from .config import Config
 from .notifier import Notifier, log_notifier_errors
+from .recovery import gather_recovery_intel
 from .tailscale import TailscaleClient
 
 logger = logging.getLogger(__name__)
@@ -133,7 +134,8 @@ def create_app(config: Config) -> FastAPI:
                 logger.warning("Webhook matched watched device but device details unavailable")
                 continue
 
-            errors = notifier.send_all(device, reason)
+            recovery = gather_recovery_intel(client, device, config)
+            errors = notifier.send_all(device, reason, recovery)
             log_notifier_errors(errors)
             handled += 1
 

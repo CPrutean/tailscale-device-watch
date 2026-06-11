@@ -17,6 +17,7 @@ class Device:
     last_seen: str | None
     client_version: str | None
     endpoints: list[str]
+    derp: str | None
     raw: dict[str, Any]
 
     @property
@@ -38,14 +39,28 @@ class TailscaleClient:
         payload = response.json()
         return [self._parse_device(item) for item in payload.get("devices", [])]
 
-    def get_device(self, device_id: str) -> Device:
+    def get_device(self, device_id: str, *, fields: str | None = None) -> Device:
         url = f"{self.BASE_URL}/device/{device_id}"
-        response = httpx.get(url, auth=self._auth, timeout=30.0)
+        params = {"fields": fields} if fields else None
+        response = httpx.get(url, auth=self._auth, params=params, timeout=30.0)
         response.raise_for_status()
         return self._parse_device(response.json())
 
+    def get_device_attributes(self, device_id: str) -> dict[str, Any]:
+        url = f"{self.BASE_URL}/device/{device_id}/attributes"
+        response = httpx.get(url, auth=self._auth, timeout=30.0)
+        response.raise_for_status()
+        payload = response.json()
+        attributes = payload.get("attributes")
+        if isinstance(attributes, dict):
+            return attributes
+        return {}
+
     @staticmethod
     def _parse_device(data: dict[str, Any]) -> Device:
+        connectivity = data.get("clientConnectivity") or {}
+        endpoints = list(data.get("endpoints") or connectivity.get("endpoints") or [])
+        derp = connectivity.get("derp")
         return Device(
             id=str(data.get("id", "")),
             name=str(data.get("name", "")),
@@ -55,7 +70,8 @@ class TailscaleClient:
             connected_to_control=bool(data.get("connectedToControl", False)),
             last_seen=data.get("lastSeen"),
             client_version=data.get("clientVersion"),
-            endpoints=list(data.get("endpoints") or []),
+            endpoints=endpoints,
+            derp=str(derp) if derp else None,
             raw=data,
         )
 

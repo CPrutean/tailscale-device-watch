@@ -8,12 +8,17 @@ from typing import Iterable
 import httpx
 
 from .config import Config
+from .recovery import RecoveryIntel
 from .tailscale import Device
 
 logger = logging.getLogger(__name__)
 
 
-def build_alert_message(device: Device, reason: str) -> tuple[str, str]:
+def build_alert_message(
+    device: Device,
+    reason: str,
+    recovery: RecoveryIntel | None = None,
+) -> tuple[str, str]:
     title = f"ALERT: {device.display_name} is back on Tailscale"
     lines = [
         reason,
@@ -24,15 +29,23 @@ def build_alert_message(device: Device, reason: str) -> tuple[str, str]:
         f"Addresses: {', '.join(device.addresses) or 'none'}",
         f"Client version: {device.client_version or 'unknown'}",
     ]
-    if device.endpoints:
+    if recovery is not None:
+        recovery_lines = recovery.format_lines()
+        if recovery_lines:
+            lines.extend(["", "Recovery intelligence:"])
+            lines.extend(recovery_lines)
+    elif device.endpoints:
         lines.append(f"Public endpoints: {', '.join(device.endpoints)}")
+    if device.derp:
+        lines.append(f"DERP relay: {device.derp}")
     lines.extend(
         [
             "",
             "Recommended actions:",
-            "- Note the public endpoints above (may help locate the device).",
+            "- Save this alert and any public IPs / map links for law enforcement.",
+            "- Request ISP subscriber records for the public endpoint IPs.",
             "- Revoke or remove the device in the Tailscale admin console.",
-            "- Contact law enforcement if applicable.",
+            "- Do not ping or connect further if it may alert the thief.",
         ]
     )
     body = "\n".join(lines)
@@ -43,13 +56,18 @@ class Notifier:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def send_all(self, device: Device, reason: str) -> list[str]:
-        title, body = build_alert_message(device, reason)
+    def send_all(
+        self,
+        device: Device,
+        reason: str,
+        recovery: RecoveryIntel | None = None,
+    ) -> list[str]:
+        title, body = build_alert_message(device, reason, recovery)
         errors: list[str] = []
 
         if self._config.discord_webhook_url:
             try:
-                self._send_discord(title, body, device)
+                self._send_discord(title, body, device, recovery)
             except Exception as exc:  # noqa: BLE001 - surface all notifier failures
                 errors.append(f"Discord: {exc}")
 
@@ -75,7 +93,54 @@ class Notifier:
 
         return errors
 
-    def _send_discord(self, title: str, body: str, device: Device) -> None:
+    def _send_discord(
+        self,
+        title: str,
+        body: str,
+        device: Device,
+        recovery: RecoveryIntel | None = None,
+    ) -> None:
+        fields = [
+            {"name": "Device", "value": device.display_name, "inline": True},
+            {
+                "name": "Tailscale IPs",
+                "value": ", ".join(device.addresses) or "none",
+                "inline": True,
+            },
+        ]
+        if recovery is not None and recovery.posture_country:
+            fields.append(
+                {
+                    "name": "Country (Tailscale)",
+                    "value": recovery.posture_country,
+                    "inline": True,
+                }
+            )
+        if recovery is not None and recovery.geo_locations:
+            fields.append(
+                {
+                    "name": "GeoIP",
+                    "value": recovery.geo_locations[0].summary[:1024],
+                    "inline": False,
+                }
+            )
+        if recovery is not None and recovery.maps_url:
+            fields.append(
+                {
+                    "name": "Map (approximate)",
+                    "value": recovery.maps_url,
+                    "inline": False,
+                }
+            )
+        if recovery is not None and recovery.ping is not None:
+            fields.append(
+                {
+                    "name": "Tailscale ping",
+                    "value": recovery.ping.summary[:1024],
+                    "inline": False,
+                }
+            )
+
         payload = {
             "content": "@everyone" if "stolen" in title.lower() else None,
             "embeds": [
@@ -83,14 +148,7 @@ class Notifier:
                     "title": title,
                     "description": body[:4000],
                     "color": 0xFF0000,
-                    "fields": [
-                        {"name": "Device", "value": device.display_name, "inline": True},
-                        {
-                            "name": "Tailscale IPs",
-                            "value": ", ".join(device.addresses) or "none",
-                            "inline": True,
-                        },
-                    ],
+                    "fields": fields,
                 }
             ],
         }

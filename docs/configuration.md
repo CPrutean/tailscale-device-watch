@@ -45,6 +45,20 @@ At least one channel should be configured for alerts to be useful. Multiple chan
 
 See [Notifications](notifications.md) for provider-specific setup.
 
+## Recovery intelligence
+
+When an alert fires, the watcher gathers extra data to help locate the device. The watcher host should be enrolled on the same tailnet and have the `tailscale` CLI available.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TAILSCALE_PING_ENABLED` | `true` | Run `tailscale ping` against the watched device on alert |
+| `TAILSCALE_PING_COUNT` | `3` | Number of ping packets to send |
+| `TAILSCALE_PING_TIMEOUT_SECONDS` | `5` | Per-ping timeout passed to the Tailscale CLI |
+| `TAILSCALE_CLI` | `tailscale` | Path to the Tailscale CLI binary |
+| `GEOIP_ENABLED` | `true` | Look up city/region for public endpoint IPs via ip-api.com |
+
+On alert, the watcher also fetches full device details (`fields=all`) and Tailscale posture attributes (including `ip:country` on Standard+ plans).
+
 ## Webhook server (optional)
 
 Used only in `serve` or `both` modes.

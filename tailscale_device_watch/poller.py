@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from .config import Config
 from .notifier import Notifier, log_notifier_errors
+from .recovery import gather_recovery_intel
 from .state import load_state, save_state
 from .tailscale import Device, TailscaleClient
 
@@ -68,7 +69,8 @@ def poll_once(config: Config) -> bool:
 
     reason = _format_transition_reason(device, previously_online)
     logger.warning("ALERT: %s", reason)
-    errors = notifier.send_all(device, reason)
+    recovery = gather_recovery_intel(client, device, config)
+    errors = notifier.send_all(device, reason, recovery)
     log_notifier_errors(errors)
     return True
 

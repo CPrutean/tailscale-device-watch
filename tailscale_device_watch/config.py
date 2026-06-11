@@ -27,6 +27,11 @@ class Config:
     alert_sms_to: str | None
     tailscale_webhook_secret: str | None
     webhook_port: int
+    tailscale_ping_enabled: bool
+    tailscale_ping_count: int
+    tailscale_ping_timeout_seconds: float
+    tailscale_cli: str
+    geoip_enabled: bool
 
     @property
     def has_notifier(self) -> bool:
@@ -42,6 +47,15 @@ def _optional(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _bool(value: str | None, *, default: bool) -> bool:
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    return normalized in {"1", "true", "yes", "on"}
 
 
 def load_config(env_file: str | None = None) -> Config:
@@ -82,4 +96,11 @@ def load_config(env_file: str | None = None) -> Config:
         alert_sms_to=_optional(os.getenv("ALERT_SMS_TO")),
         tailscale_webhook_secret=_optional(os.getenv("TAILSCALE_WEBHOOK_SECRET")),
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
+        tailscale_ping_enabled=_bool(os.getenv("TAILSCALE_PING_ENABLED"), default=True),
+        tailscale_ping_count=max(1, int(os.getenv("TAILSCALE_PING_COUNT", "3"))),
+        tailscale_ping_timeout_seconds=float(
+            os.getenv("TAILSCALE_PING_TIMEOUT_SECONDS", "5")
+        ),
+        tailscale_cli=os.getenv("TAILSCALE_CLI", "tailscale").strip() or "tailscale",
+        geoip_enabled=_bool(os.getenv("GEOIP_ENABLED"), default=True),
     )
