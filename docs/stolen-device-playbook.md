@@ -14,6 +14,8 @@ If it was removed from the tailnet, you will not get online alerts — only re-e
 
 Follow [Getting started](getting-started.md). Run `poll` mode on an always-on host with at least Discord or SMS configured.
 
+Enroll the watcher host on your tailnet and install the Tailscale CLI so alerts include ping and path data. Tag the watcher (e.g. `tag:device-watch`) and allow minimal ACL access to the watched device only.
+
 ### 3. Lock down tailnet access
 
 Do not rely on alerts alone. Consider:
@@ -56,10 +58,14 @@ An alert means the device connected to Tailscale's control plane. Act quickly bu
 
 ### Immediate actions (first 15 minutes)
 
-1. **Save the alert** — screenshot Discord/email. Copy public endpoint IPs if present.
-2. **Do not tip off the thief** — avoid SSH-ing, ping-ing, or remote-wiping immediately if you want law enforcement involved; coordinate with them first.
+1. **Save the alert** — screenshot Discord/email. The alert may include:
+   - Public endpoint IPs (most actionable — police can request ISP subscriber records)
+   - GeoIP city/region and an approximate map link
+   - Tailscale `ip:country` posture attribute
+   - DERP relay region and one `tailscale ping` result (if the watcher is on your tailnet)
+2. **Do not tip off the thief** — the watcher runs one ping on alert; avoid further SSH, ping, or remote-wipe unless coordinated with law enforcement.
 3. **Check the admin console** — [Admin → Machines](https://login.tailscale.com/admin/machines) for live status, endpoints, and client version.
-4. **Record endpoints** — the API may report public IP:port pairs (e.g. `203.0.113.50:41641`). Provide these to police; they can request ISP logs.
+4. **Record endpoints** — public IP:port pairs (e.g. `203.0.113.50:41641`). Provide these to police; they can request ISP logs. GeoIP map links are approximate context only.
 
 ### Tailscale admin actions
 
@@ -93,7 +99,7 @@ Tailscale may respond to valid legal process; contact them through official chan
 
 ## What this tool does not do
 
-- **No GPS tracking** — only network connection metadata from Tailscale.
+- **No GPS tracking** — GeoIP and `ip:country` are derived from public IP addresses, not device GPS.
 - **No remote wipe** — use Find My Device, Intune, or similar.
 - **No guarantee of instant detection** — polling interval adds up to `POLL_INTERVAL_SECONDS` delay.
 - **No offline webhook** — Tailscale does not push reconnect events; polling is required.

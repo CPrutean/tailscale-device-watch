@@ -15,6 +15,8 @@ Good options:
 
 **Do not** run the watcher on the stolen device itself.
 
+For **recovery intelligence** (Tailscale ping on alert), the watcher host must be enrolled on your tailnet with the `tailscale` CLI. The default Docker image does not include Tailscale — use a native install, systemd on a tailnet node, or a custom image with Tailscale sidecar/host networking.
+
 ## Docker
 
 ### Quick start
@@ -155,4 +157,4 @@ State in `state.json` is preserved via the volume mount.
 
 ## Resource usage
 
-Minimal — one HTTP request to Tailscale every poll interval, plus occasional notification HTTP calls. Typical memory footprint is well under 100 MB.
+Minimal — one HTTP request to Tailscale every poll interval, plus occasional notification HTTP calls. On alert, additional API calls, GeoIP lookups, and one `tailscale ping` run. Typical memory footprint is well under 100 MB.

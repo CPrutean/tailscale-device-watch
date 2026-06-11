@@ -9,6 +9,7 @@ This guide walks you through installing Tailscale Device Watch and receiving you
 - A [Tailscale API key](https://login.tailscale.com/admin/settings/keys)
 - At least one notification channel (Discord is the fastest to set up)
 - An always-on machine to run the watcher (home server, VPS, NAS, or another tailnet device)
+- The watcher host enrolled on your tailnet with the `tailscale` CLI (for recovery intelligence on alert)
 
 ## Step 1: Identify the device to watch
 
@@ -54,6 +55,17 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 | `DISCORD_WEBHOOK_URL` | See [Notifications → Discord](notifications.md#discord-recommended). |
 
 See [Configuration reference](configuration.md) for every option.
+
+### Recovery intelligence (recommended)
+
+When an alert fires, the watcher gathers extra data to help locate the device:
+
+```bash
+tailscale status    # confirm watcher is on the tailnet
+tailscale ping janes-laptop   # test reachability to the watched device
+```
+
+Defaults in `.env.example` enable Tailscale ping and GeoIP lookup. Set `TAILSCALE_PING_ENABLED=false` or `GEOIP_ENABLED=false` to disable either.
 
 ## Step 5: Test a single poll
 

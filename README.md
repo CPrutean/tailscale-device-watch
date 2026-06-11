@@ -5,6 +5,7 @@ Get alerted when a specific Tailscale device comes back online — useful if a l
 ## Features
 
 - Detects **offline → online** reconnects via the Tailscale Devices API
+- **Recovery intelligence** on alert — public endpoints, GeoIP city/region, Tailscale `ip:country`, and `tailscale ping` (watcher host on tailnet)
 - Alerts via **Discord**, **email**, or **SMS** (any combination)
 - Optional Tailscale **webhook receiver** for supplementary management events
 - Runs as a Python process, **Docker** container, or **systemd** service
@@ -34,16 +35,16 @@ docker compose up -d --build
 
 Full documentation lives in **[docs/](docs/README.md)**:
 
-| Guide | Description |
-|-------|-------------|
-| [Getting started](docs/getting-started.md) | Install, configure, first poll |
-| [Configuration](docs/configuration.md) | Environment variables and CLI |
-| [Notifications](docs/notifications.md) | Discord, email, SMS setup |
-| [Deployment](docs/deployment.md) | Docker, systemd, hosting |
-| [Tailscale webhooks](docs/tailscale-webhooks.md) | Optional webhook receiver |
+| Guide                                                    | Description                        |
+| -------------------------------------------------------- | ---------------------------------- |
+| [Getting started](docs/getting-started.md)               | Install, configure, first poll     |
+| [Configuration](docs/configuration.md)                   | Environment variables and CLI      |
+| [Notifications](docs/notifications.md)                   | Discord, email, SMS setup          |
+| [Deployment](docs/deployment.md)                         | Docker, systemd, hosting           |
+| [Tailscale webhooks](docs/tailscale-webhooks.md)         | Optional webhook receiver          |
 | [Stolen device playbook](docs/stolen-device-playbook.md) | Security steps before/after alerts |
-| [Architecture](docs/architecture.md) | How detection works |
-| [Troubleshooting](docs/troubleshooting.md) | Common problems |
+| [Architecture](docs/architecture.md)                     | How detection works                |
+| [Troubleshooting](docs/troubleshooting.md)               | Common problems                    |
 
 ## Commands
 

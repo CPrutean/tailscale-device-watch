@@ -12,6 +12,12 @@ How Tailscale Device Watch detects reconnects and sends alerts.
          │
          │ offline → online?
          ▼
+┌─────────────────┐     fields=all, attributes     ┌──────────────────────┐
+│  Recovery intel │ ──────────────────────────────►│ Tailscale Devices API │
+│  (recovery.py)  │     GeoIP (ip-api.com)          └──────────────────────┘
+└────────┬────────┘     tailscale ping (local CLI)
+         │
+         ▼
 ┌─────────────────┐
 │    Notifier     │──► Discord webhook
 │                 │──► SMTP email
@@ -70,6 +76,19 @@ For each event in the JSON array:
 
 Webhook alerts are **independent** of poll-based alerts — either can fire alone.
 
+## Recovery intelligence
+
+When an alert fires (poll or webhook), `recovery.py` gathers location and reachability data before notifications are sent:
+
+1. **Re-fetch device** — `GET /api/v2/device/{id}?fields=all` for `clientConnectivity` (public endpoints, DERP relay)
+2. **Posture attributes** — `GET /api/v2/device/{id}/attributes` for `ip:country` (Standard+ plans)
+3. **GeoIP lookup** — resolve each public endpoint IP to city/region/coordinates via ip-api.com (optional, `GEOIP_ENABLED`)
+4. **Tailscale ping** — run `tailscale ping` from the watcher host to confirm reachability and connection path (optional, `TAILSCALE_PING_ENABLED`)
+
+The watcher host should be enrolled on the same tailnet with the `tailscale` CLI available. Ping requires ACL permission from the watcher node to the watched device.
+
+Recovery data is included in Discord embeds (country, GeoIP, map link, ping summary) and in email body text. This is ISP-level location from public IPs — not GPS.
+
 ## Notification pipeline
 
 `notifier.py` builds a title and body from device metadata, then dispatches to each configured channel in parallel (failures are logged per channel).
@@ -91,6 +110,7 @@ tailscale-device-watch/
 │   ├── config.py         # Environment loading
 │   ├── poller.py         # Poll loop and transition detection
 │   ├── tailscale.py      # Tailscale API client
+│   ├── recovery.py       # GeoIP, ping, recovery intel on alert
 │   ├── notifier.py       # Discord, email, SMS
 │   ├── webhook_server.py # FastAPI webhook receiver
 │   └── state.py          # JSON state read/write
@@ -118,5 +138,7 @@ The password is empty — only the API key is sent.
 | Poll delay | Up to `POLL_INTERVAL_SECONDS` before detection |
 | API rate limits | Tailscale may rate-limit aggressive polling; stay ≥10s |
 | Endpoint data | Public IPs appear only when Tailscale has them; may be empty |
+| GeoIP accuracy | City-level at best; VPNs and mobile hotspots reduce accuracy |
+| Tailscale ping | Requires watcher on tailnet + ACL access; not available inside default Docker image |
 | Multi-device match | Refuses to run if `WATCH_DEVICE` matches more than one device |
 | Twilio | Requires all four Twilio env vars; SMS is supplementary |
