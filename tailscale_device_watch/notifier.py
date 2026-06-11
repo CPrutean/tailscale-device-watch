@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+import logging
+import smtplib
+from email.message import EmailMessage
+from typing import Iterable
+
+import httpx
+
+from .config import Config
+from .tailscale import Device
+
+logger = logging.getLogger(__name__)
+
+
+def build_alert_message(device: Device, reason: str) -> tuple[str, str]:
+    title = f"ALERT: {device.display_name} is back on Tailscale"
+    lines = [
+        reason,
+        "",
+        f"Device: {device.display_name}",
+        f"Tailscale ID: {device.id}",
+        f"OS: {device.os or 'unknown'}",
+        f"Addresses: {', '.join(device.addresses) or 'none'}",
+        f"Client version: {device.client_version or 'unknown'}",
+    ]
+    if device.endpoints:
+        lines.append(f"Public endpoints: {', '.join(device.endpoints)}")
+    lines.extend(
+        [
+            "",
+            "Recommended actions:",
+            "- Note the public endpoints above (may help locate the device).",
+            "- Revoke or remove the device in the Tailscale admin console.",
+            "- Contact law enforcement if applicable.",
+        ]
+    )
+    body = "\n".join(lines)
+    return title, body
+
+
+class Notifier:
+    def __init__(self, config: Config) -> None:
+        self._config = config
+
+    def send_all(self, device: Device, reason: str) -> list[str]:
+        title, body = build_alert_message(device, reason)
+        errors: list[str] = []
+
+        if self._config.discord_webhook_url:
+            try:
+                self._send_discord(title, body, device)
+            except Exception as exc:  # noqa: BLE001 - surface all notifier failures
+                errors.append(f"Discord: {exc}")
+
+        if self._config.smtp_host and self._config.alert_email_to:
+            try:
+                self._send_email(title, body)
+            except Exception as exc:
+                errors.append(f"Email: {exc}")
+
+        if (
+            self._config.twilio_account_sid
+            and self._config.twilio_auth_token
+            and self._config.twilio_from_number
+            and self._config.alert_sms_to
+        ):
+            try:
+                self._send_sms(f"{title}. {device.display_name}. Check email/Discord for details.")
+            except Exception as exc:
+                errors.append(f"SMS: {exc}")
+
+        if not self._config.has_notifier:
+            raise RuntimeError("No notification channels configured")
+
+        return errors
+
+    def _send_discord(self, title: str, body: str, device: Device) -> None:
+        payload = {
+            "content": "@everyone" if "stolen" in title.lower() else None,
+            "embeds": [
+                {
+                    "title": title,
+                    "description": body[:4000],
+                    "color": 0xFF0000,
+                    "fields": [
+                        {"name": "Device", "value": device.display_name, "inline": True},
+                        {
+                            "name": "Tailscale IPs",
+                            "value": ", ".join(device.addresses) or "none",
+                            "inline": True,
+                        },
+                    ],
+                }
+            ],
+        }
+        response = httpx.post(
+            self._config.discord_webhook_url,
+            json={k: v for k, v in payload.items() if v is not None},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+
+    def _send_email(self, subject: str, body: str) -> None:
+        message = EmailMessage()
+        message["Subject"] = subject
+        message["From"] = self._config.smtp_from or self._config.smtp_user
+        message["To"] = self._config.alert_email_to
+        message.set_content(body)
+
+        with smtplib.SMTP(self._config.smtp_host, self._config.smtp_port, timeout=30) as smtp:
+            smtp.starttls()
+            if self._config.smtp_user and self._config.smtp_password:
+                smtp.login(self._config.smtp_user, self._config.smtp_password)
+            smtp.send_message(message)
+
+    def _send_sms(self, text: str) -> None:
+        url = (
+            f"https://api.twilio.com/2010-04-01/Accounts/"
+            f"{self._config.twilio_account_sid}/Messages.json"
+        )
+        response = httpx.post(
+            url,
+            auth=(self._config.twilio_account_sid, self._config.twilio_auth_token),
+            data={
+                "From": self._config.twilio_from_number,
+                "To": self._config.alert_sms_to,
+                "Body": text[:1500],
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+
+
+def log_notifier_errors(errors: Iterable[str]) -> None:
+    for error in errors:
+        logger.error("Notification failed: %s", error)

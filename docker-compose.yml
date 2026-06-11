@@ -1,0 +1,9 @@
+services:
+  watcher:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${WEBHOOK_PORT:-8080}:8080"
+    volumes:
+      - ./state.json:/app/state.json
