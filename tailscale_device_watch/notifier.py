@@ -65,15 +65,15 @@ class Notifier:
         title, body = build_alert_message(device, reason, recovery)
         errors: list[str] = []
 
-        if self._config.discord_webhook_url:
+        for webhook_url in self._config.discord_webhook_urls:
             try:
-                self._send_discord(title, body, device, recovery)
+                self._send_discord(title, body, device, recovery, webhook_url)
             except Exception as exc:  # noqa: BLE001 - surface all notifier failures
-                errors.append(f"Discord: {exc}")
+                errors.append(f"Discord ({webhook_url}): {exc}")
 
         if self._config.smtp_host and self._config.alert_email_to:
             try:
-                self._send_email(title, body)
+                self._send_email(title, body, self._config.alert_email_to)
             except Exception as exc:
                 errors.append(f"Email: {exc}")
 
@@ -83,10 +83,12 @@ class Notifier:
             and self._config.twilio_from_number
             and self._config.alert_sms_to
         ):
-            try:
-                self._send_sms(f"{title}. {device.display_name}. Check email/Discord for details.")
-            except Exception as exc:
-                errors.append(f"SMS: {exc}")
+            sms_text = f"{title}. {device.display_name}. Check email/Discord for details."
+            for phone_number in self._config.alert_sms_to:
+                try:
+                    self._send_sms(sms_text, phone_number)
+                except Exception as exc:
+                    errors.append(f"SMS ({phone_number}): {exc}")
 
         if not self._config.has_notifier:
             raise RuntimeError("No notification channels configured")
@@ -99,6 +101,7 @@ class Notifier:
         body: str,
         device: Device,
         recovery: RecoveryIntel | None = None,
+        webhook_url: str | None = None,
     ) -> None:
         fields = [
             {"name": "Device", "value": device.display_name, "inline": True},
@@ -153,26 +156,26 @@ class Notifier:
             ],
         }
         response = httpx.post(
-            self._config.discord_webhook_url,
+            webhook_url or self._config.discord_webhook_urls[0],
             json={k: v for k, v in payload.items() if v is not None},
             timeout=30.0,
         )
         response.raise_for_status()
 
-    def _send_email(self, subject: str, body: str) -> None:
+    def _send_email(self, subject: str, body: str, recipients: tuple[str, ...]) -> None:
         message = EmailMessage()
         message["Subject"] = subject
         message["From"] = self._config.smtp_from or self._config.smtp_user
-        message["To"] = self._config.alert_email_to
+        message["To"] = ", ".join(recipients)
         message.set_content(body)
 
         with smtplib.SMTP(self._config.smtp_host, self._config.smtp_port, timeout=30) as smtp:
             smtp.starttls()
             if self._config.smtp_user and self._config.smtp_password:
                 smtp.login(self._config.smtp_user, self._config.smtp_password)
-            smtp.send_message(message)
+            smtp.send_message(message, to_addrs=list(recipients))
 
-    def _send_sms(self, text: str) -> None:
+    def _send_sms(self, text: str, phone_number: str) -> None:
         url = (
             f"https://api.twilio.com/2010-04-01/Accounts/"
             f"{self._config.twilio_account_sid}/Messages.json"
@@ -182,7 +185,7 @@ class Notifier:
             auth=(self._config.twilio_account_sid, self._config.twilio_auth_token),
             data={
                 "From": self._config.twilio_from_number,
-                "To": self._config.alert_sms_to,
+                "To": phone_number,
                 "Body": text[:1500],
             },
             timeout=30.0,

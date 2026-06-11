@@ -2,6 +2,20 @@
 
 All settings are loaded from environment variables, typically via a `.env` file in the project root.
 
+Copy `.env.example` to `.env` and edit your values:
+
+```bash
+cp .env.example .env
+```
+
+By default the CLI loads `.env` from the **current working directory**. Pass a custom path with `--env-file`:
+
+```bash
+python -m tailscale_device_watch poll --env-file /etc/tailscale-device-watch.env
+```
+
+If the env file exists, its values override shell environment variables for the same keys.
+
 ## Required
 
 | Variable | Description | Example |
@@ -31,17 +45,20 @@ At least one channel should be configured for alerts to be useful. Multiple chan
 
 | Variable | Required for | Description |
 |----------|--------------|-------------|
-| `DISCORD_WEBHOOK_URL` | Discord | Full Discord incoming webhook URL |
+| `DISCORD_WEBHOOK_URL` | Discord | One or more Discord incoming webhook URLs (comma, semicolon, or newline separated) |
+| `DISCORD_WEBHOOK_URLS` | Discord | Optional alias for extra webhook URLs (merged with `DISCORD_WEBHOOK_URL`) |
 | `SMTP_HOST` | Email | SMTP server hostname |
 | `SMTP_PORT` | Email | SMTP port (default `587`) |
 | `SMTP_USER` | Email | SMTP username (if auth required) |
 | `SMTP_PASSWORD` | Email | SMTP password or app password |
 | `SMTP_FROM` | Email | From address (defaults to `SMTP_USER`) |
-| `ALERT_EMAIL_TO` | Email | Recipient email address |
+| `ALERT_EMAIL_TO` | Email | One or more recipient email addresses (comma, semicolon, or newline separated) |
+| `ALERT_EMAIL_TO_LIST` | Email | Optional alias for extra recipients (merged with `ALERT_EMAIL_TO`) |
 | `TWILIO_ACCOUNT_SID` | SMS | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | SMS | Twilio auth token |
 | `TWILIO_FROM_NUMBER` | SMS | Twilio sender number (E.164) |
-| `ALERT_SMS_TO` | SMS | Your phone number (E.164) |
+| `ALERT_SMS_TO` | SMS | One or more recipient phone numbers in E.164 format |
+| `ALERT_SMS_TO_LIST` | SMS | Optional alias for extra SMS recipients (merged with `ALERT_SMS_TO`) |
 
 See [Notifications](notifications.md) for provider-specific setup.
 

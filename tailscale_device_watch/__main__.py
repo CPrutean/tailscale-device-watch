@@ -47,9 +47,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not config.has_notifier and args.command in {"poll", "once", "both"}:
+        env_hint = str(config.env_file) if config.env_file else args.env_file
         print(
             "Warning: no notification channels configured. "
-            "Set DISCORD_WEBHOOK_URL, SMTP_*, or TWILIO_* in .env",
+            f"Set DISCORD_WEBHOOK_URL, ALERT_EMAIL_TO, or ALERT_SMS_TO in {env_hint}",
             file=sys.stderr,
         )
 
